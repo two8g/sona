@@ -1,67 +1,14 @@
 package org.apache.spark.util
 
-import java.io.{ObjectInputStream, ObjectOutputStream, Serializable}
-import java.util.{PriorityQueue => JPriorityQueue}
+import java.io.Serializable
 
-import org.apache.hadoop.conf.Configuration
 import org.apache.spark.linalg.Vector
 import org.apache.spark.util.collection.OpenHashSet
 
-import scala.collection.JavaConverters._
-import scala.collection.generic.Growable
 import scala.reflect.ClassTag
 
 
 case class Example(label: Double, weight: Double, features: Vector)
-
-
-class BoundedPriorityQueue[A](maxSize: Int)(implicit ord: Ordering[A])
-  extends Iterable[A] with Growable[A] with Serializable {
-
-  private val underlying = new JPriorityQueue[A](maxSize, ord)
-
-  override def iterator: Iterator[A] = underlying.iterator.asScala
-
-  override def size: Int = underlying.size
-
-  override def ++=(xs: TraversableOnce[A]): this.type = {
-    xs.foreach {
-      this += _
-    }
-    this
-  }
-
-  override def +=(elem: A): this.type = {
-    if (size < maxSize) {
-      underlying.offer(elem)
-    } else {
-      maybeReplaceLowest(elem)
-    }
-    this
-  }
-
-  def poll(): A = {
-    underlying.poll()
-  }
-
-  override def +=(elem1: A, elem2: A, elems: A*): this.type = {
-    this += elem1 += elem2 ++= elems
-  }
-
-  override def clear() {
-    underlying.clear()
-  }
-
-  private def maybeReplaceLowest(a: A): Boolean = {
-    val head = underlying.peek()
-    if (head != null && ord.gt(a, head)) {
-      underlying.poll()
-      underlying.offer(a)
-    } else {
-      false
-    }
-  }
-}
 
 
 class OpenHashMap[K: ClassTag, @specialized(Long, Int, Double) V: ClassTag](initialCapacity: Int)
@@ -194,18 +141,5 @@ class OpenHashMap[K: ClassTag, @specialized(Long, Int, Double) V: ClassTag](init
 
   protected var move = (oldPos: Int, newPos: Int) => {
     _values(newPos) = _oldValues(oldPos)
-  }
-}
-
-
-class SerializableConfiguration(@transient var value: Configuration) extends Serializable {
-  private def writeObject(out: ObjectOutputStream): Unit = Utils.tryOrIOException {
-    out.defaultWriteObject()
-    value.write(out)
-  }
-
-  private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException {
-    value = new Configuration(false)
-    value.readFields(in)
   }
 }
