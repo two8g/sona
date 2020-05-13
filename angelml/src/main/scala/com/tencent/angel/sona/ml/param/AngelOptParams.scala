@@ -21,7 +21,7 @@ import com.tencent.angel.sona.ml.param.shared.HasMaxIter
 
 
 trait AngelOptParams extends Params with HasMaxIter with HasLearningRate
-  with HasNumBatch with HasDecayConf with HasIncTrain with ParamsHelper {
+  with HasNumBatch with HasDecayConf with HasIncTrain with HasEarlyStopCheck with ParamsHelper {
 
   def setMaxIter(value: Int): this.type = setInternal(maxIter, value)
 
@@ -60,6 +60,14 @@ trait AngelOptParams extends Params with HasMaxIter with HasLearningRate
   def setInitModelPath(value: String): this.type = {
     set(incTrain, true)
     setInternal(initModelPath, value)
+  }
+
+  def setEarlyStopPatience(value: Int): this.type = {
+    setInternal(earlyStopPatience, value)
+  }
+
+  def setEarlyStopThreshold(value: Double): this.type = {
+    setInternal(earlyStopThreshold, value)
   }
 }
 
@@ -118,4 +126,17 @@ trait HasIncTrain extends Params {
   final def getIncTrain: Boolean = $(incTrain)
 
   final def getInitModelPath: String = $(initModelPath)
+}
+
+
+trait HasEarlyStopCheck extends Params {
+  final val earlyStopPatience: IntParam = new IntParam(this, "earlyStopPatience",
+    "early stop when loss not optimize after patience times (>0)", ParamValidators.gt(0))
+
+  final def getEarlyStopPatience: Int = $(earlyStopPatience)
+
+  final val earlyStopThreshold: DoubleParam = new DoubleParam(this, "earlyStopThreshold",
+    "minimum change in the loss quantity to qualify as an improvement, i.e. an absolute change of less than min_delta, will count as no improvement", ParamValidators.gt(0))
+
+  final def getEarlyStopThreshold: Double = $(earlyStopThreshold)
 }

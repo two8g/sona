@@ -16,6 +16,7 @@
  */
 
 package com.tencent.angel.sona.ml.classification
+
 import com.tencent.angel.client.AngelPSClient
 import com.tencent.angel.ml.core.PSOptimizerProvider
 import com.tencent.angel.ml.math2.utils.{LabeledData, RowType}
@@ -238,7 +239,10 @@ class AngelClassifier(override val uid: String)
     angelModel.setState(VarState.Ready)
 
     /** training **********************************************************************************/
-    (0 until getMaxIter).foreach { epoch =>
+    var epoch = 0
+    var bestEpoch = -1
+    var earlyStop = false
+    while (epoch < getMaxIter && !earlyStop) {
       globalRunStat.clearStat().setAvgLoss(0.0).setNumSamples(0)
       manifoldRDD.foreach { case batch: RDD[Array[LabeledData]] =>
         // training one batch
@@ -257,6 +261,21 @@ class AngelClassifier(override val uid: String)
 
       globalRunStat.addHistLoss()
       println(globalRunStat.printString())
+
+      if (getEarlyStopPatience > 0 && getEarlyStopThreshold > 0) {
+        if (bestEpoch == -1) {
+          bestEpoch = epoch
+        } else {
+          val latter = globalRunStat.getAvgLoss
+          val former = globalRunStat.getHistLoss(bestEpoch)
+          if (latter < former && Math.abs(latter - former) > getEarlyStopThreshold) {
+            bestEpoch = epoch
+          }
+        }
+        earlyStop = (epoch - bestEpoch) > getEarlyStopPatience
+      }
+
+      epoch += 1
     }
 
     /** *******************************************************************************************/
