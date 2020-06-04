@@ -44,6 +44,8 @@ import org.apache.spark.storage.StorageLevel
 import org.apache.spark.linalg
 import org.apache.spark.linalg._
 import com.tencent.angel.sona.core.AngelGraphModel
+import com.tencent.angel.sona.tree.objective.ObjectiveFactory
+import com.tencent.angel.sona.tree.objective.metric.EvalMetric
 
 import scala.collection.JavaConverters._
 
@@ -241,7 +243,9 @@ class AngelClassifier(override val uid: String)
     /** training **********************************************************************************/
     var epoch = 0
     var bestEpoch = -1
+    var bestMetric = 0.0
     var earlyStop = false
+    val kind = ObjectiveFactory.getEvalMetricKind(getEarlyStopMetric)
     while (epoch < getMaxIter && !earlyStop) {
       globalRunStat.clearStat().setAvgLoss(0.0).setNumSamples(0)
       manifoldRDD.foreach { case batch: RDD[Array[LabeledData]] =>
@@ -263,14 +267,10 @@ class AngelClassifier(override val uid: String)
       println(globalRunStat.printString())
 
       if (getEarlyStopPatience > 0 && getEarlyStopThreshold > 0) {
-        if (bestEpoch == -1) {
+        val metric = getMetricValue(globalRunStat, kind)
+        if (bestEpoch == -1 || isBetter(kind, bestMetric, metric, getEarlyStopThreshold)) {
           bestEpoch = epoch
-        } else {
-          val latter = globalRunStat.getAvgLoss
-          val former = globalRunStat.getHistLoss(bestEpoch)
-          if (latter < former && Math.abs(latter - former) > getEarlyStopThreshold) {
-            bestEpoch = epoch
-          }
+          bestMetric = metric
         }
         earlyStop = (epoch - bestEpoch) > getEarlyStopPatience
       }
@@ -286,6 +286,27 @@ class AngelClassifier(override val uid: String)
     instr.logSuccess()
 
     sparkModel
+  }
+
+  private def isBetter(kind: EvalMetric.Kind, former: Double, latter: Double,
+                       threshold: Double): Boolean = {
+    kind match {
+      case EvalMetric.Kind.AUC | EvalMetric.Kind.PRECISION =>
+        latter > former && Math.abs(latter - former) / former > threshold
+      case EvalMetric.Kind.CROSS_ENTROPY | EvalMetric.Kind.ERROR
+           | EvalMetric.Kind.LOG_LOSS | EvalMetric.Kind.RMSE =>
+        latter < former && Math.abs(latter - former) / former > threshold
+      case _ => throw new RuntimeException(s"Unrecognizable eval metric: $kind")
+    }
+  }
+
+  private def getMetricValue(runStat: ClassificationTrainingStat, kind: EvalMetric.Kind): Double = {
+    kind match {
+      case EvalMetric.Kind.AUC => runStat.areaUnderROC
+      case EvalMetric.Kind.LOG_LOSS => runStat.getAvgLoss
+      case EvalMetric.Kind.PRECISION => runStat.getSummary.precision()
+      case _ => throw new RuntimeException(s"Unrecognizable eval metric in Classification: $kind")
+    }
   }
 
   override def copy(extra: ParamMap): AngelClassifier = defaultCopy(extra)

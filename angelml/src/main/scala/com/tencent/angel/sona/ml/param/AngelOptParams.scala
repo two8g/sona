@@ -18,6 +18,8 @@
 package com.tencent.angel.sona.ml.param
 import com.tencent.angel.mlcore.conf.MLCoreConf
 import com.tencent.angel.sona.ml.param.shared.HasMaxIter
+import com.tencent.angel.sona.tree.objective.ObjectiveFactory
+import com.tencent.angel.sona.tree.objective.metric.EvalMetric
 
 
 trait AngelOptParams extends Params with HasMaxIter with HasLearningRate
@@ -60,6 +62,12 @@ trait AngelOptParams extends Params with HasMaxIter with HasLearningRate
   def setInitModelPath(value: String): this.type = {
     set(incTrain, true)
     setInternal(initModelPath, value)
+  }
+
+  setDefault(earlyStopMetric -> EvalMetric.Kind.LOG_LOSS.toString)
+
+  def setEarlyStopMetric(value: String): this.type = {
+    setInternal(earlyStopMetric, value)
   }
 
   def setEarlyStopPatience(value: Int): this.type = {
@@ -131,12 +139,17 @@ trait HasIncTrain extends Params {
 
 trait HasEarlyStopCheck extends Params {
   final val earlyStopPatience: IntParam = new IntParam(this, "earlyStopPatience",
-    "early stop when loss not optimize after patience times (>0)", ParamValidators.gt(0))
+    "early stop when metric not optimize after patience times (>0)", ParamValidators.gt(0))
 
   final def getEarlyStopPatience: Int = $(earlyStopPatience)
 
+  final val earlyStopMetric: Param[String] = new Param[String](this, "earlyStopMetric",
+  "early stop metric, one of (rmse error log-loss cross-entropy precision auc)", (value: String) => value != null && value.nonEmpty)
+
+  final def getEarlyStopMetric: String = $(earlyStopMetric)
+
   final val earlyStopThreshold: DoubleParam = new DoubleParam(this, "earlyStopThreshold",
-    "minimum change in the loss quantity to qualify as an improvement, i.e. an absolute change of less than min_delta, will count as no improvement", ParamValidators.gt(0))
+    "minimum change in the metric quantity to qualify as an improvement, i.e. an absolute change of less than min_delta, will count as no improvement", ParamValidators.gt(0))
 
   final def getEarlyStopThreshold: Double = $(earlyStopThreshold)
 }
