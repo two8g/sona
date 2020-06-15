@@ -18,7 +18,6 @@
 package com.tencent.angel.sona.ml.param
 import com.tencent.angel.mlcore.conf.MLCoreConf
 import com.tencent.angel.sona.ml.param.shared.HasMaxIter
-import com.tencent.angel.sona.tree.objective.ObjectiveFactory
 import com.tencent.angel.sona.tree.objective.metric.EvalMetric
 
 
@@ -65,6 +64,8 @@ trait AngelOptParams extends Params with HasMaxIter with HasLearningRate
   }
 
   setDefault(earlyStopMetric -> EvalMetric.Kind.LOG_LOSS.toString)
+  setDefault(earlyStopPatience -> 3)
+  setDefault(earlyStopThreshold -> 1e-4)
 
   def setEarlyStopMetric(value: String): this.type = {
     setInternal(earlyStopMetric, value)
